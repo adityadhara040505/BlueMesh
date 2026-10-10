@@ -92,9 +92,31 @@ class ContactTile extends StatelessWidget {
           ),
         ],
       ),
-      trailing: IconButton(
-        icon: const Icon(Icons.info_outline_rounded, size: 20),
-        onPressed: onVerifyFingerprint,
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryBlue.withOpacity(0.18),
+              foregroundColor: AppColors.primaryLight,
+              elevation: 0,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            ),
+            onPressed: onTap,
+            child: const Text('Chat', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+          ),
+          if (onVerifyFingerprint != null) ...[
+            const SizedBox(width: 4),
+            IconButton(
+              icon: const Icon(Icons.info_outline_rounded, size: 20),
+              tooltip: 'Verify Fingerprint',
+              onPressed: onVerifyFingerprint,
+            ),
+          ],
+        ],
       ),
     );
   }

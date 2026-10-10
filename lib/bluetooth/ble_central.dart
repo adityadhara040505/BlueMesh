@@ -171,6 +171,13 @@ class BleCentralManager {
     AppLogger.i('Initiating Central connection to peer $peerId ($remoteId)...');
 
     try {
+      // Pause active scanning before initiating connection to prevent BlueZ and Android HCI driver collisions
+      if (FlutterBluePlus.isScanningNow) {
+        try {
+          await FlutterBluePlus.stopScan();
+        } catch (_) {}
+      }
+
       // Connect with autoConnect=false for faster initial discovery
       await device.connect(
         timeout: const Duration(seconds: 10),
@@ -199,12 +206,13 @@ class BleCentralManager {
       BluetoothCharacteristic? heartbeatChar;
 
       for (final s in services) {
-        if (s.serviceUuid.str.toLowerCase() == GattDefinitions.serviceUuid.toLowerCase()) {
+        final sUuid = s.serviceUuid.str.toLowerCase();
+        if (sUuid == GattDefinitions.serviceUuid.toLowerCase() || sUuid.contains('ffff')) {
           for (final c in s.characteristics) {
             final uuid = c.characteristicUuid.str.toLowerCase();
-            if (uuid == GattDefinitions.txCharUuid.toLowerCase()) txChar = c;
-            if (uuid == GattDefinitions.rxCharUuid.toLowerCase()) rxChar = c;
-            if (uuid == GattDefinitions.heartbeatCharUuid.toLowerCase()) heartbeatChar = c;
+            if (uuid == GattDefinitions.txCharUuid.toLowerCase() || uuid.contains('ff01')) txChar = c;
+            if (uuid == GattDefinitions.rxCharUuid.toLowerCase() || uuid.contains('ff02')) rxChar = c;
+            if (uuid == GattDefinitions.heartbeatCharUuid.toLowerCase() || uuid.contains('ff04')) heartbeatChar = c;
           }
         }
       }

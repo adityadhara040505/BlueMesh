@@ -66,18 +66,18 @@ class BleState {
 class BleNotifier extends StateNotifier<BleState> {
   final Ref ref;
 
-  late final KeyManager keyManager;
-  late final ContactRepository contactRepository;
-  late final ChatRepository chatRepository;
-  late final MessageRepository messageRepository;
-  late final MessageDeduplicator deduplicator;
-  late final BleManager bleManager;
-  late final MeshRouter meshRouter;
-  late final HeartbeatService heartbeatService;
-  late final PeerDiscoveryManager peerDiscoveryManager;
-  late final StoreAndForwardManager storeAndForwardManager;
-  late final MessageSigner messageSigner;
-  late final MeshEncryption encryption;
+  late KeyManager keyManager;
+  late ContactRepository contactRepository;
+  late ChatRepository chatRepository;
+  late MessageRepository messageRepository;
+  late MessageDeduplicator deduplicator;
+  late BleManager bleManager;
+  late MeshRouter meshRouter;
+  late HeartbeatService heartbeatService;
+  late PeerDiscoveryManager peerDiscoveryManager;
+  late StoreAndForwardManager storeAndForwardManager;
+  late MessageSigner messageSigner;
+  late MeshEncryption encryption;
 
   bool _initialized = false;
   Timer? _uiRefreshTimer;

@@ -1,5 +1,8 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_ble_peripheral/flutter_ble_peripheral.dart';
 import '../core/constants.dart';
 import '../core/logger.dart';
@@ -27,6 +30,8 @@ class BlePeripheralManager {
     required this.onPacketReceived,
   });
 
+  static const MethodChannel _gattChannel = MethodChannel('com.bluemesh.app/gatt_server');
+
   /// Full 8-character hex suffix for advertised device name.
   String get fullHexId => myDeviceId.toRadixString(16).padLeft(8, '0');
   String get shortHexId => fullHexId;
@@ -40,6 +45,23 @@ class BlePeripheralManager {
       if (!isSupported) {
         AppLogger.w('BLE Peripheral advertising is NOT supported on this hardware/platform.');
         return;
+      }
+
+      // Start native Android GATT Server to listen for Central writes and allow notifications
+      if (!kIsWeb && Platform.isAndroid) {
+        _gattChannel.setMethodCallHandler((call) async {
+          if (call.method == 'onPacketReceived') {
+            final args = call.arguments as Map<dynamic, dynamic>?;
+            final packet = args?['packet'];
+            if (packet is Uint8List) {
+              onPacketReceived(packet);
+            } else if (packet is List) {
+              onPacketReceived(Uint8List.fromList(packet.cast<int>()));
+            }
+          }
+        });
+        await _gattChannel.invokeMethod('startServer');
+        AppLogger.i('Native Android GATT Server started with TX & RX characteristics.');
       }
 
       final advertisedName = '${BleConstants.advertisedNamePrefix}$fullHexId';
@@ -91,7 +113,9 @@ class BlePeripheralManager {
   Future<void> notifyMessage(Uint8List fragment) async {
     if (!_isAdvertising) return;
     try {
-      await _blePeripheral.sendData(fragment);
+      if (!kIsWeb && Platform.isAndroid) {
+        await _gattChannel.invokeMethod('notifyMessage', {'data': fragment});
+      }
     } catch (e) {
       AppLogger.w('Peripheral notify error on RX characteristic: $e');
     }
@@ -101,7 +125,9 @@ class BlePeripheralManager {
   Future<void> notifyHeartbeat(Uint8List heartbeatPacket) async {
     if (!_isAdvertising) return;
     try {
-      await _blePeripheral.sendData(heartbeatPacket);
+      if (!kIsWeb && Platform.isAndroid) {
+        await _gattChannel.invokeMethod('notifyHeartbeat', {'data': heartbeatPacket});
+      }
     } catch (e) {
       AppLogger.w('Peripheral notify error on HEARTBEAT characteristic: $e');
     }
@@ -111,6 +137,11 @@ class BlePeripheralManager {
   Future<void> stop() async {
     _advertisingWatchdogTimer?.cancel();
     try {
+      if (!kIsWeb && Platform.isAndroid) {
+        try {
+          await _gattChannel.invokeMethod('stopServer');
+        } catch (_) {}
+      }
       if (_isAdvertising) {
         await _blePeripheral.stop();
         _isAdvertising = false;

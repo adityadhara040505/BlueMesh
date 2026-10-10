@@ -41,7 +41,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     });
   }
 
-  Future<void> _sendMessage() async {
+  Future<void> _sendMessage(String receiverName) async {
     final text = _textController.text.trim();
     final validation = InputValidators.validateMessageText(text);
     if (validation != null) return;
@@ -50,7 +50,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
     await ref.read(chatActionsProvider).sendMessage(
       recipientPeerId: widget.peerId,
-      peerName: widget.peerName,
+      peerName: receiverName,
       text: text,
       enableEncryption: _enableEncryption,
     );
@@ -86,6 +86,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       orElse: () => null,
     );
     final isOnline = contact?.isOnline ?? false;
+    final receiverName = (contact != null && contact.name.isNotEmpty) ? contact.name : widget.peerName;
 
     return Scaffold(
       appBar: AppBar(
@@ -96,7 +97,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               radius: 18,
               backgroundColor: AppColors.primaryDark.withOpacity(0.35),
               child: Text(
-                widget.peerName.isNotEmpty ? widget.peerName[0].toUpperCase() : '?',
+                receiverName.isNotEmpty ? receiverName[0].toUpperCase() : '?',
                 style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
               ),
             ),
@@ -105,10 +106,33 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    widget.peerName,
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                    overflow: TextOverflow.ellipsis,
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          receiverName,
+                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                        decoration: BoxDecoration(
+                          color: AppColors.primaryBlue.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: const Text(
+                          'RECEIVER',
+                          style: TextStyle(
+                            fontSize: 9,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.primaryLight,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                   Text(
                     isOnline ? 'Online in cluster' : 'Offline (Queued)',
@@ -144,18 +168,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       body: Column(
         children: [
           // Store-and-forward indicator if peer is offline
-          ConnectionBanner(isOnline: isOnline, peerName: widget.peerName),
+          ConnectionBanner(isOnline: isOnline, peerName: receiverName),
 
           // Conversation messages list
           Expanded(
             child: messagesAsync.when(
               data: (messages) {
                 if (messages.isEmpty) {
-                  return const Center(
+                  return Center(
                     child: Text(
-                      'No messages yet.\nType below to start peer-to-peer chat.',
+                      'No messages with $receiverName yet.\nType below to start peer-to-peer chat.',
                       textAlign: TextAlign.center,
-                      style: TextStyle(color: AppColors.offlineGrey, fontSize: 13),
+                      style: const TextStyle(color: AppColors.offlineGrey, fontSize: 13),
                     ),
                   );
                 }
@@ -171,7 +195,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     return MessageBubble(
                       message: msg,
                       isOutgoing: msg.isOutgoing(myId),
-                      onResend: () => ref.read(chatActionsProvider).resendMessage(msg, widget.peerName),
+                      onResend: () => ref.read(chatActionsProvider).resendMessage(msg, receiverName),
                       onDelete: () async {
                         final bleNotifier = ref.read(bleProvider.notifier);
                         await bleNotifier.messageRepository.deleteMessage(msg.id, chatId);
@@ -185,45 +209,94 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             ),
           ),
 
-          // Bottom message composer
-          _buildInputBar(),
+          // Bottom message composer with prominent receiver name indicator
+          _buildInputBar(receiverName, isOnline),
         ],
       ),
     );
   }
 
-  Widget _buildInputBar() {
+  Widget _buildInputBar(String receiverName, bool isOnline) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
         color: Theme.of(context).cardColor,
         border: Border(top: BorderSide(color: Colors.white.withOpacity(0.06))),
       ),
       child: SafeArea(
-        child: Row(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Expanded(
-              child: TextField(
-                controller: _textController,
-                maxLength: MeshConstants.maxTextMessageLength,
-                buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
-                textInputAction: TextInputAction.send,
-                onSubmitted: (_) => _sendMessage(),
-                decoration: const InputDecoration(
-                  hintText: 'Type message...',
-                  isDense: true,
-                ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+              color: AppColors.primaryDark.withOpacity(0.2),
+              child: Row(
+                children: [
+                  Icon(
+                    _enableEncryption ? Icons.lock_outline_rounded : Icons.lock_open_rounded,
+                    size: 13,
+                    color: _enableEncryption ? AppColors.accentCyan : AppColors.offlineGrey,
+                  ),
+                  const SizedBox(width: 6),
+                  const Text(
+                    'To: ',
+                    style: TextStyle(fontSize: 11, color: AppColors.offlineGrey),
+                  ),
+                  Expanded(
+                    child: Text(
+                      receiverName,
+                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  Container(
+                    width: 7,
+                    height: 7,
+                    decoration: BoxDecoration(
+                      color: isOnline ? AppColors.onlineGreen : AppColors.offlineGrey,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 5),
+                  Text(
+                    isOnline ? 'Online' : 'Queued',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w500,
+                      color: isOnline ? AppColors.onlineGreen : AppColors.offlineGrey,
+                    ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(width: 8),
-            Container(
-              decoration: const BoxDecoration(
-                color: AppColors.primaryBlue,
-                shape: BoxShape.circle,
-              ),
-              child: IconButton(
-                icon: const Icon(Icons.send_rounded, color: Colors.white, size: 20),
-                onPressed: _sendMessage,
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _textController,
+                      maxLength: MeshConstants.maxTextMessageLength,
+                      buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                      textInputAction: TextInputAction.send,
+                      onSubmitted: (_) => _sendMessage(receiverName),
+                      decoration: InputDecoration(
+                        hintText: 'Message to $receiverName...',
+                        isDense: true,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    decoration: const BoxDecoration(
+                      color: AppColors.primaryBlue,
+                      shape: BoxShape.circle,
+                    ),
+                    child: IconButton(
+                      icon: const Icon(Icons.send_rounded, color: Colors.white, size: 20),
+                      onPressed: () => _sendMessage(receiverName),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],

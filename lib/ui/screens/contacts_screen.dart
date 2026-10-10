@@ -19,7 +19,16 @@ class ContactsScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Cluster Nodes'),
+        title: const Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Select Receiver', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            Text(
+              'Choose a nearby node to message',
+              style: TextStyle(fontSize: 12, color: AppColors.offlineGrey, fontWeight: FontWeight.normal),
+            ),
+          ],
+        ),
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(60),
           child: Padding(
