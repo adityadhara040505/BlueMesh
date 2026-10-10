@@ -2,17 +2,14 @@
     xmlns:tools="http://schemas.android.com/tools"
     package="com.bluemesh.app">
 
-    <!-- Legacy Bluetooth Permissions (Android <= 11 / API <= 30) -->
+    <!-- Bluetooth & Location Permissions for Cross-Platform BLE Mesh -->
     <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
-    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" android:maxSdkVersion="30" />
-    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
     <!-- Modern Bluetooth Permissions (Android 12+ / API 31+) -->
-    <!-- neverForLocation flag informs OS that BLE scanning is NOT used to deduce user physical coordinates -->
-    <uses-permission 
-        android:name="android.permission.BLUETOOTH_SCAN" 
-        android:usesPermissionFlags="neverForLocation" />
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
     <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
 

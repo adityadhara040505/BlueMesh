@@ -211,8 +211,11 @@ class BleNotifier extends StateNotifier<BleState> {
   }
 
   void _updatePeersList() {
-    final list = contactRepository.contactsNotifier.value.map((c) {
-      return DevicePeer(
+    final Map<int, DevicePeer> peersMap = {};
+
+    // 1. Add all contacts from repository
+    for (final c in contactRepository.contactsNotifier.value) {
+      peersMap[c.deviceId] = DevicePeer(
         deviceId: c.deviceId,
         remoteId: c.deviceHex,
         advertisedName: c.name,
@@ -220,10 +223,40 @@ class BleNotifier extends StateNotifier<BleState> {
         isConnected: c.isOnline,
         hopCount: c.hopCount,
       );
-    }).toList();
+    }
+
+    // 2. Add / merge live discovered BLE peers
+    for (final p in peerDiscoveryManager.discoveredPeers.values) {
+      final existing = peersMap[p.deviceId];
+      if (existing != null) {
+        existing.rssi = p.rssi;
+        existing.lastSeen = p.lastSeen;
+        existing.isConnected = existing.isConnected || p.isConnected;
+      } else {
+        peersMap[p.deviceId] = p;
+      }
+    }
+
+    // 3. Mark active connections from connection pool
+    for (final conn in bleManager.connectionPool.activeConnections) {
+      final existing = peersMap[conn.deviceId];
+      if (existing != null) {
+        existing.isConnected = true;
+        existing.lastSeen = DateTime.now();
+      } else {
+        peersMap[conn.deviceId] = DevicePeer(
+          deviceId: conn.deviceId,
+          remoteId: conn.remoteId,
+          advertisedName: 'Node-${conn.deviceId.toRadixString(16).padLeft(8, '0')}',
+          lastSeen: DateTime.now(),
+          isConnected: true,
+          hopCount: 1,
+        );
+      }
+    }
 
     state = state.copyWith(
-      discoveredPeers: list,
+      discoveredPeers: peersMap.values.toList(),
       connectedPeersCount: bleManager.connectionPool.activeConnections.length,
     );
   }

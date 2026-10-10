@@ -40,6 +40,12 @@ class AppLogger {
     }
     _recentLogs.addLast(entry);
     logUpdateNotifier.value++;
+
+    // Print directly to stdout for terminal and runtime diagnosis
+    print('[BlueMesh ${level.name.toUpperCase()}] $message');
+    if (error != null) {
+      print('[BlueMesh ${level.name.toUpperCase()} CAUSE] $error');
+    }
   }
 
   /// Debug level logging for verbose internal traces.

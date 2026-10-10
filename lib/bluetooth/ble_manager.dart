@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import '../core/constants.dart';
 import '../core/logger.dart';
 import '../core/platform_capabilities.dart';
@@ -67,6 +69,10 @@ class BleManager {
       await _peripheral!.start();
     } else {
       AppLogger.i('Operating in Central-Only mode (Peripheral advertising disabled).');
+      // On Linux desktop, announce presence via BlueZ system alias and discoverable LE advertising
+      if (!kIsWeb && Platform.isLinux) {
+        _startLinuxAdvertising();
+      }
     }
 
     // 4. Initialize BLE Central GATT Client & Duty-Cycle Scanner
@@ -80,6 +86,20 @@ class BleManager {
 
     _isInitialized = true;
     AppLogger.i('BlueMesh BLE Orchestrator ready.');
+  }
+
+  /// Broadcasts BLE presence on Linux desktop via BlueZ bluetoothctl.
+  Future<void> _startLinuxAdvertising() async {
+    try {
+      final advertisedName = '${BleConstants.advertisedNamePrefix}${myDeviceId.toRadixString(16).padLeft(8, '0')}';
+      AppLogger.i('Configuring Linux Bluetooth adapter as "$advertisedName"...');
+      await Process.run('bluetoothctl', ['system-alias', advertisedName]);
+      await Process.run('bluetoothctl', ['discoverable', 'on']);
+      await Process.run('bluetoothctl', ['advertise', 'on']);
+      AppLogger.i('Linux Bluetooth advertising active as "$advertisedName".');
+    } catch (e) {
+      AppLogger.w('Linux bluetoothctl setup error: $e');
+    }
   }
 
   /// Handles incoming raw fragment from Central or Peripheral role.
@@ -175,6 +195,11 @@ class BleManager {
   Future<void> dispose() async {
     _isInitialized = false;
     fragmenter.dispose();
+    if (!kIsWeb && Platform.isLinux) {
+      try {
+        await Process.run('bluetoothctl', ['advertise', 'off']);
+      } catch (_) {}
+    }
     await _central?.stop();
     await _peripheral?.stop();
     await connectionPool.clearAll();

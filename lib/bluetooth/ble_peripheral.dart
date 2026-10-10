@@ -50,20 +50,22 @@ class BlePeripheralManager {
         ..setUint32(0, myDeviceId, Endian.little)
         ..setUint8(4, 0x01);
 
-      // Primary advertisement packet: Service UUID only (18 bytes <= 31 byte BLE limit)
+      // Single compact advertisement packet (strictly <= 31-byte BLE legacy advertising limit):
+      // - 128-bit Service UUID: 18 bytes
+      // - Manufacturer Data (0xFFFF company ID + 5-byte payload): 9 bytes
+      // - Flags: 3 bytes
+      // Total: 30 bytes <= 31 byte limit!
+      // Setting includeDeviceName: false avoids appending long OS device names which would cause ADVERTISE_FAILED_DATA_TOO_LARGE.
       final advertiseData = AdvertiseData(
         serviceUuid: GattDefinitions.serviceUuid,
-      );
-
-      // Scan response packet: Local Name + Manufacturer Data (22 bytes <= 31 byte BLE limit)
-      final advertiseResponseData = AdvertiseData(
-        localName: advertisedName,
         manufacturerId: 0xFFFF,
         manufacturerData: mfgData,
+        includeDeviceName: false,
+        localName: advertisedName,
       );
 
       final advertiseSettings = AdvertiseSettings(
-        advertiseMode: AdvertiseMode.advertiseModeBalanced,
+        advertiseMode: AdvertiseMode.advertiseModeLowLatency,
         txPowerLevel: AdvertiseTxPower.advertiseTxPowerHigh,
         connectable: true,
         timeout: 0, // Continuous advertising
@@ -72,7 +74,6 @@ class BlePeripheralManager {
       AppLogger.i('Starting BLE Peripheral advertising as "$advertisedName"...');
       await _blePeripheral.start(
         advertiseData: advertiseData,
-        advertiseResponseData: advertiseResponseData,
         advertiseSettings: advertiseSettings,
       );
 

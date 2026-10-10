@@ -20,6 +20,8 @@ class PeerDiscoveryManager {
   final ContactRepository contactRepository;
 
   final Map<int, DevicePeer> _discoveredPeers = {};
+  Map<int, DevicePeer> get discoveredPeers => Map.unmodifiable(_discoveredPeers);
+
   final StreamController<DevicePeer> _peerJoinedController = StreamController.broadcast();
   final StreamController<int> _peerLeftController = StreamController.broadcast();
   final StreamController<DevicePeer> _peerUpdatedController = StreamController.broadcast();
@@ -54,6 +56,18 @@ class PeerDiscoveryManager {
       _discoveredPeers[peer.deviceId] = peer;
       _peerJoinedController.add(peer);
       AppLogger.i('Peer joined cluster: ${peer.advertisedName} (${peer.deviceId})');
+
+      // Immediately upsert contact record so discovered peer is visible in the UI immediately
+      final contact = Contact(
+        deviceId: peer.deviceId,
+        name: peer.advertisedName,
+        publicKey: '',
+        fingerprint: '',
+        lastSeen: DateTime.now(),
+        isOnline: true,
+        hopCount: 1,
+      );
+      contactRepository.upsertContact(contact);
 
       // Schedule contact card exchange
       _sendContactCard(peer.deviceId);

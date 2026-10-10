@@ -62,17 +62,13 @@ class BleCentralManager {
       _scanSubscription?.cancel();
       _scanSubscription = FlutterBluePlus.scanResults.listen(_handleScanResults);
 
-      // On Linux/macOS/Windows desktop: scan without service filter so BlueZ captures
-      // all nearby advertisements and doesn't discard scan responses or manufacturer data.
-      // On mobile (Android/iOS): use serviceUuid filter.
-      final List<Guid> scanServices = (!kIsWeb && (Platform.isAndroid || Platform.isIOS))
-          ? [Guid(GattDefinitions.serviceUuid)]
-          : [];
-
+      // Open scan without service filter across all platforms so Bluetooth stack does not drop
+      // packets or manufacturer data due to strict hardware filtering.
       await FlutterBluePlus.startScan(
-        withServices: scanServices,
+        withServices: const [],
         timeout: BleConstants.scanDuration,
         androidUsesFineLocation: false,
+        androidCheckLocationServices: false,
       );
     } catch (e) {
       AppLogger.w('Scan cycle start failed: $e');
@@ -97,8 +93,14 @@ class BleCentralManager {
 
       int? peerId;
 
-      // 1. Check manufacturer data first (exact 32-bit little-endian deviceId)
-      if (result.advertisementData.manufacturerData.isNotEmpty) {
+      // 1. Check manufacturer data: look specifically for company ID 0xFFFF
+      if (result.advertisementData.manufacturerData.containsKey(0xFFFF)) {
+        final mfgData = result.advertisementData.manufacturerData[0xFFFF]!;
+        if (mfgData.length >= 4) {
+          peerId = ByteData.sublistView(Uint8List.fromList(mfgData)).getUint32(0, Endian.little);
+        }
+      } else if (result.advertisementData.manufacturerData.isNotEmpty) {
+        // Fallback: check any 5-byte manufacturer data payload
         for (final mfgData in result.advertisementData.manufacturerData.values) {
           if (mfgData.length >= 4) {
             peerId = ByteData.sublistView(Uint8List.fromList(mfgData)).getUint32(0, Endian.little);
@@ -107,14 +109,23 @@ class BleCentralManager {
         }
       }
 
-      // 2. If not in manufacturer data, check advertised name "BM-<hex>"
-      if (peerId == null && name.startsWith(BleConstants.advertisedNamePrefix)) {
-        final hexSuffix = name.replaceFirst(BleConstants.advertisedNamePrefix, '');
+      // 2. Check advertised or platform name ("BlueMesh-<hex>" or "BM-<hex>")
+      if (peerId == null && (name.startsWith(BleConstants.advertisedNamePrefix) || name.startsWith('BM-') || name.startsWith('BlueMesh-'))) {
+        final hexSuffix = name
+            .replaceFirst(BleConstants.advertisedNamePrefix, '')
+            .replaceFirst('BlueMesh-', '')
+            .replaceFirst('BM-', '');
         peerId = int.tryParse(hexSuffix, radix: 16);
       }
 
-      // 3. Check service UUID match
-      final hasService = result.advertisementData.serviceUuids.contains(Guid(GattDefinitions.serviceUuid));
+      // 3. Check service UUID match (handles 128-bit, 16-bit, and string variants)
+      final hasService = result.advertisementData.serviceUuids.any((u) {
+        final str = u.str128.toLowerCase();
+        final raw = u.toString().toLowerCase();
+        return str == GattDefinitions.serviceUuid.toLowerCase() ||
+            raw.contains('ffff') ||
+            str.contains('ffff');
+      });
 
       if (peerId == null) {
         if (!hasService) continue;
@@ -124,8 +135,9 @@ class BleCentralManager {
       // Filter out self-connection to avoid echo loops
       if (peerId == myDeviceId) continue;
 
-      AppLogger.i('Discovered BlueMesh peer: $name (id=$peerId, remoteId=$remoteId, rssi=$rssi)');
-      onPeerDiscovered(peerId, remoteId, name, rssi);
+      final displayName = name.isNotEmpty ? name : 'BlueMesh-${peerId.toRadixString(16).padLeft(8, '0')}';
+      AppLogger.i('Discovered BlueMesh peer: $displayName (id=$peerId, remoteId=$remoteId, rssi=$rssi)');
+      onPeerDiscovered(peerId, remoteId, displayName, rssi);
 
       // Attempt automatic connection if pool has capacity
       _checkAutoConnect(peerId, result.device, rssi);
