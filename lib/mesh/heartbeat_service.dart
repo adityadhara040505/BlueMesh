@@ -98,9 +98,13 @@ class HeartbeatService {
         payload: Uint8List.fromList(jsonBytes),
       );
 
-      // Transmit to Central and Peripheral connections
-      await bleManager.sendMeshMessage(message);
-      await bleManager.sendHeartbeatPing(Uint8List.fromList(jsonBytes));
+      // Transmit to Central and Peripheral connections if active
+      if (bleManager.connectionPool.activeConnections.isNotEmpty) {
+        await bleManager.sendMeshMessage(message);
+      }
+      if (bleManager.isPeripheralEnabled) {
+        await bleManager.sendHeartbeatPing(Uint8List.fromList(jsonBytes));
+      }
     } catch (e) {
       AppLogger.w('Failed to broadcast heartbeat: $e');
     }
